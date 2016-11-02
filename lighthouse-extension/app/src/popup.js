@@ -16,7 +16,7 @@
  */
 'use strict';
 
-const _flatten = arr => [].concat.apply([], arr);
+const _flatten = arr => [].concat.apply(...arr);
 
 document.addEventListener('DOMContentLoaded', _ => {
   const background = chrome.extension.getBackgroundPage();
