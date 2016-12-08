@@ -51,6 +51,8 @@ const path = require('path');
  * 3. Teardown
  *   A. GatherRunner.disposeDriver()
  *   B. collect all artifacts and return them
+ *     i. collectArtifacts() from completed passes on each gatherer
+ *     ii. add trace data and computed artifact methods
  */
 class GatherRunner {
   /**
@@ -108,14 +110,21 @@ class GatherRunner {
    * Navigates to about:blank and calls beforePass() on gatherers before tracing
    * has started and before navigation to the target page.
    * @param {!Object} options
+   * @param {!Object<!Array<!Promise<*>>} gathererResults
    * @return {!Promise}
    */
-  static beforePass(options) {
+  static beforePass(options, gathererResults) {
     const pass = GatherRunner.loadBlank(options.driver);
 
     return options.config.gatherers.reduce((chain, gatherer) => {
       return chain.then(_ => {
-        return gatherer.beforePass(options);
+        const artifactPromise = Promise.resolve().then(_ => gatherer.beforePass(options));
+        gathererResults[gatherer.name].push(artifactPromise);
+        return artifactPromise.catch(err => {
+          if (!err.recoverable) {
+            throw err;
+          }
+        });
       });
     }, pass);
   }
@@ -124,9 +133,10 @@ class GatherRunner {
    * Navigates to requested URL and then runs pass() on gatherers while trace
    * (if requested) is still being recorded.
    * @param {!Object} options
+   * @param {!Object<!Array<!Promise<*>>} gathererResults
    * @return {!Promise}
    */
-  static pass(options) {
+  static pass(options, gathererResults) {
     const driver = options.driver;
     const config = options.config;
     const gatherers = config.gatherers;
@@ -140,7 +150,15 @@ class GatherRunner {
     });
 
     return gatherers.reduce((chain, gatherer) => {
-      return chain.then(_ => gatherer.pass(options));
+      return chain.then(_ => {
+        const artifactPromise = Promise.resolve().then(_ => gatherer.pass(options));
+        gathererResults[gatherer.name].push(artifactPromise);
+        return artifactPromise.catch(err => {
+          if (!err.recoverable) {
+            throw err;
+          }
+        });
+      });
     }, pass);
   }
 
@@ -149,9 +167,10 @@ class GatherRunner {
    * afterPass() on gatherers with trace data passed in. Promise resolves with
    * object containing trace and network data.
    * @param {!Object} options
+   * @param {!Object<!Array<!Promise<*>>} gathererResults
    * @return {!Promise}
    */
-  static afterPass(options) {
+  static afterPass(options, gathererResults) {
     const driver = options.driver;
     const config = options.config;
     const gatherers = config.gatherers;
@@ -187,15 +206,54 @@ class GatherRunner {
       const status = `Retrieving: ${gatherer.name}`;
       return chain.then(_ => {
         log.log('status', status);
-        return gatherer.afterPass(options, passData);
-      }).then(ret => {
+        const artifactPromise = Promise.resolve().then(_ => gatherer.afterPass(options, passData));
+        gathererResults[gatherer.name].push(artifactPromise);
+        return artifactPromise.catch(err => {
+          if (!err.recoverable) {
+            throw err;
+          }
+        });
+      }).then(_ => {
         log.verbose('statusEnd', status);
-        return ret;
       });
     }, pass);
 
     // Resolve on tracing data using passName from config.
     return pass.then(_ => passData);
+  }
+
+  /**
+   * Takes the results of each gatherer phase for each gatherer and uses the
+   * last produced value (that's not undefined) as the artifact for that
+   * gatherer. If a recoverable error was rejected from a gatherer phase,
+   * uses that error as the artifact instead.
+   * @param {!Object<!Array<!Promise<*>>} gathererResults
+   * @return {!Promise<!Artifacts>}
+   */
+  static collectArtifacts(gathererResults) {
+    const artifacts = {};
+
+    return Object.keys(gathererResults).reduce((chain, gathererName) => {
+      return chain.then(_ => {
+        const phaseResultsPromises = gathererResults[gathererName];
+        return Promise.all(phaseResultsPromises).then(phaseResults => {
+          // Take last defined pass result as artifact.
+          const artifact = phaseResults.reduceRight((prev, curr) => {
+            return prev === undefined ? curr : prev;
+          });
+          if (artifact === undefined) {
+            throw new Error(`${gathererName} failed to provide an artifact.`);
+          }
+          artifacts[gathererName] = artifact;
+        }, err => {
+          // To reach this point, all errors are recoverable, so return err to
+          // runner to handle turning it into an error audit.
+          artifacts[gathererName] = err;
+        });
+      });
+    }, Promise.resolve()).then(_ => {
+      return artifacts;
+    });
   }
 
   static run(passes, options) {
@@ -224,6 +282,13 @@ class GatherRunner {
 
     passes = this.instantiateGatherers(passes, options.config.configDir);
 
+    const gathererResults = {};
+    passes.forEach(pass => {
+      pass.gatherers.forEach(gatherer => {
+        gathererResults[gatherer.name] = [];
+      });
+    });
+
     return driver.connect()
       .then(_ => GatherRunner.loadBlank(driver))
       .then(_ => GatherRunner.setupDriver(driver, options))
@@ -235,9 +300,9 @@ class GatherRunner {
         return passes.reduce((chain, config, passIndex) => {
           const runOptions = Object.assign({}, options, {config});
           return chain
-            .then(_ => GatherRunner.beforePass(runOptions))
-            .then(_ => GatherRunner.pass(runOptions))
-            .then(_ => GatherRunner.afterPass(runOptions))
+            .then(_ => GatherRunner.beforePass(runOptions, gathererResults))
+            .then(_ => GatherRunner.pass(runOptions, gathererResults))
+            .then(_ => GatherRunner.afterPass(runOptions, gathererResults))
             .then(passData => {
               // If requested by config, merge trace and network data for this
               // pass into tracingData.
@@ -255,20 +320,11 @@ class GatherRunner {
         });
       })
       .then(_ => GatherRunner.disposeDriver(driver))
-      .then(_ => {
-        // Collate all the gatherer results.
+      .then(_ => GatherRunner.collectArtifacts(gathererResults))
+      .then(artifacts => {
+        // Add tracing data and computed artifacts to artifacts object.
         const computedArtifacts = this.instantiateComputedArtifacts();
-        const artifacts = Object.assign({}, computedArtifacts, tracingData);
-
-        passes.forEach(pass => {
-          pass.gatherers.forEach(gatherer => {
-            if (typeof gatherer.artifact === 'undefined') {
-              throw new Error(`${gatherer.name} failed to provide an artifact.`);
-            }
-
-            artifacts[gatherer.name] = gatherer.artifact;
-          });
-        });
+        Object.assign(artifacts, computedArtifacts, tracingData);
         return artifacts;
       })
       // cleanup on error
