@@ -119,7 +119,7 @@ class GatherRunner {
     return options.config.gatherers.reduce((chain, gatherer) => {
       return chain.then(_ => {
         const artifactPromise = Promise.resolve().then(_ => gatherer.beforePass(options));
-        gathererResults[gatherer.name].push(artifactPromise);
+        gathererResults[gatherer.name] = [artifactPromise];
         return artifactPromise.catch(err => {
           if (!err.recoverable) {
             throw err;
@@ -238,9 +238,8 @@ class GatherRunner {
         const phaseResultsPromises = gathererResults[gathererName];
         return Promise.all(phaseResultsPromises).then(phaseResults => {
           // Take last defined pass result as artifact.
-          const artifact = phaseResults.reduceRight((prev, curr) => {
-            return prev === undefined ? curr : prev;
-          });
+          const definedResults = phaseResults.filter(element => element !== undefined);
+          const artifact = definedResults[definedResults.length - 1];
           if (artifact === undefined) {
             throw new Error(`${gathererName} failed to provide an artifact.`);
           }
@@ -283,11 +282,6 @@ class GatherRunner {
     passes = this.instantiateGatherers(passes, options.config.configDir);
 
     const gathererResults = {};
-    passes.forEach(pass => {
-      pass.gatherers.forEach(gatherer => {
-        gathererResults[gatherer.name] = [];
-      });
-    });
 
     return driver.connect()
       .then(_ => GatherRunner.loadBlank(driver))
