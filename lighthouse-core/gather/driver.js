@@ -49,7 +49,6 @@ class Driver {
       'benchmark',
       'netlog',
       'devtools.timeline',
-      'disabled-by-default-blink.debug.layout',
       'disabled-by-default-devtools.timeline',
       'disabled-by-default-devtools.timeline.frame',
       'disabled-by-default-devtools.timeline.stack',
@@ -130,28 +129,49 @@ class Driver {
   }
 
   /**
-   * Evaluate an expression in the context of the current page. Expression must
-   * evaluate to a Promise. Returns a promise that resolves on asyncExpression's
-   * resolved value.
-   * @param {string} asyncExpression
+   * Evaluate an expression in the context of the current page.
+   * Returns a promise that resolves on the expression's value.
+   * @param {string} expression
    * @return {!Promise<*>}
    */
-  evaluateAsync(asyncExpression) {
+  evaluateAsync(expression) {
     return new Promise((resolve, reject) => {
       // If this gets to 60s and it hasn't been resolved, reject the Promise.
       const asyncTimeout = setTimeout(
         (_ => reject(new Error('The asynchronous expression exceeded the allotted time of 60s'))),
         60000
       );
+
       this.sendCommand('Runtime.evaluate', {
-        expression: asyncExpression,
+        // We need to wrap the raw expression for several purposes
+        // 1. Ensure that the expression will be a native Promise and not a polyfill/non-Promise.
+        // 2. Ensure that errors captured in the Promise are converted into plain-old JS Objects
+        //    so that they can be serialized properly b/c JSON.stringify(new Error('foo')) === '{}'
+        expression: `(function wrapInNativePromise() {
+          const __nativePromise = window.__nativePromise || Promise;
+          return __nativePromise.resolve()
+            .then(_ => ${expression})
+            .catch(${wrapRuntimeEvalErrorInBrowser.toString()});
+        }())`,
         includeCommandLineAPI: true,
         awaitPromise: true,
         returnByValue: true
       }).then(result => {
         clearTimeout(asyncTimeout);
-        resolve(result.result.value);
-      }).catch(reject);
+        const value = result.result.value;
+
+        if (result.exceptionDetails) {
+          // An error occurred before we could even create a Promise, should be *very* rare
+          reject(new Error('an unexpected driver error occurred'));
+        } if (value && value.__failedInBrowser) {
+          reject(Object.assign(new Error(), value));
+        } else {
+          resolve(value);
+        }
+      }).catch(err => {
+        clearTimeout(asyncTimeout);
+        reject(err);
+      });
     });
   }
 
@@ -395,6 +415,47 @@ class Driver {
   }
 
   /**
+  * @param {string} objectId Object ID for the resolved DOM node
+  * @param {string} propName Name of the property
+  * @return {!Promise<String>} The property value, or null, if property not found
+  */
+  getObjectProperty(objectId, propName) {
+    return new Promise((resolve, reject) => {
+      this.sendCommand('Runtime.getProperties', {
+        objectId,
+        accessorPropertiesOnly: true,
+        generatePreview: false,
+        ownProperties: false,
+      })
+      .then(properties => {
+        const propertyForName = properties.result
+          .find(property => property.name === propName);
+
+        if (propertyForName) {
+          resolve(propertyForName.value.value);
+        } else {
+          reject(null);
+        }
+      });
+    });
+  }
+
+  /**
+   * @param {string} name The name of API whose permission you wish to query
+   * @return {!Promise<string>} The state of permissions, resolved in a promise.
+   *    See https://developer.mozilla.org/en-US/docs/Web/API/Permissions/query.
+   */
+  queryPermissionState(name) {
+    const expressionToEval = `
+      navigator.permissions.query({name: '${name}'}).then(result => {
+        return result.state;
+      })
+    `;
+
+    return this.evaluateAsync(expressionToEval);
+  }
+
+  /**
    * @param {string} selector Selector to find in the DOM
    * @return {!Promise<Element>} The found element, or null, resolved in a promise
    */
@@ -413,6 +474,28 @@ class Driver {
       });
   }
 
+  /**
+   * @param {string} selector Selector to find in the DOM
+   * @return {!Promise<Element[]>} The found elements, or [], resolved in a promise
+   */
+  querySelectorAll(selector) {
+    return this.sendCommand('DOM.getDocument')
+      .then(result => result.root.nodeId)
+      .then(nodeId => this.sendCommand('DOM.querySelectorAll', {
+        nodeId,
+        selector
+      }))
+      .then(nodeList => {
+        const elementList = [];
+        nodeList.nodeIds.forEach(nodeId => {
+          if (nodeId !== 0) {
+            elementList.push(new Element({nodeId}, this));
+          }
+        });
+        return elementList;
+      });
+  }
+
   beginTrace() {
     const tracingOpts = {
       categories: this._traceCategories.join(','),
@@ -423,11 +506,7 @@ class Driver {
     // Disable any domains that could interfere or add overhead to the trace
     return this.sendCommand('Debugger.disable')
       .then(_ => this.sendCommand('CSS.disable'))
-      .then(_ => {
-        return this.sendCommand('DOM.disable')
-          // If it wasn't already enabled, it will throw; ignore these. See #861
-          .catch(_ => {});
-      })
+      .then(_ => this.sendCommand('DOM.disable'))
       // Enable Page domain to wait for Page.loadEventFired
       .then(_ => this.sendCommand('Page.enable'))
       .then(_ => this.sendCommand('Tracing.start', tracingOpts));
@@ -609,7 +688,15 @@ class Driver {
     const globalVarToPopulate = `window['__${funcName}StackTraces']`;
     const collectUsage = () => {
       return this.evaluateAsync(
-          `Promise.resolve(Array.from(${globalVarToPopulate}).map(item => JSON.parse(item)))`);
+          `Promise.resolve(Array.from(${globalVarToPopulate}).map(item => JSON.parse(item)))`)
+        .then(result => {
+          if (!Array.isArray(result)) {
+            throw new Error(
+                'Driver failure: Expected evaluateAsync results to be an array ' +
+                `but got "${JSON.stringify(result)}" instead.`);
+          }
+          return result;
+        });
     };
 
     const funcBody = captureJSCallUsage.toString();
@@ -643,12 +730,24 @@ function captureJSCallUsage(funcRef, set) {
       // First frame is the function we injected (the one that just threw).
       // Second, is the actual callsite of the funcRef we're after.
       const callFrame = structStackTrace[1];
-      const file = callFrame.getFileName();
+      let url = callFrame.getFileName();
       const line = callFrame.getLineNumber();
       const col = callFrame.getColumnNumber();
-      const stackTrace = structStackTrace.slice(1).map(
-          callsite => callsite.toString());
-      return {url: file, args, line, col, stackTrace}; // return value is e.stack
+      const isEval = callFrame.isEval();
+      const stackTrace = structStackTrace.slice(1).map(callsite => callsite.toString());
+
+      // If we don't have an URL, (e.g. eval'd code), use the last entry in the
+      // stack trace to give some context: eval(<context>):<line>:<col>
+      // See https://crbug.com/646849.
+      if (!url) {
+        url = stackTrace[0];
+      }
+
+      // TODO: add back when we want stack traces.
+      // Stack traces were removed from the return object in
+      // https://github.com/GoogleChrome/lighthouse/issues/957 so callsites
+      // would be unique.
+      return {url, args, line, col, isEval}; // return value is e.stack
     };
     const e = new Error(`__called ${funcRef.name}__`);
     set.add(JSON.stringify(e.stack));
@@ -658,6 +757,25 @@ function captureJSCallUsage(funcRef, set) {
     Error.prepareStackTrace = originalPrepareStackTrace;
 
     return originalFunc.apply(this, arguments);
+  };
+}
+
+/**
+ * The `exceptionDetails` provided by the debugger protocol does not contain the useful
+ * information such as name, message, and stack trace of the error when it's wrapped in a
+ * promise. Instead, map to a successful object that contains this information.
+ * @param {string|Error} err The error to convert
+ * istanbul ignore next
+ */
+function wrapRuntimeEvalErrorInBrowser(err) {
+  err = err || new Error();
+  const fallbackMessage = typeof err === 'string' ? err : 'unknown error';
+
+  return {
+    __failedInBrowser: true,
+    name: err.name || 'Error',
+    message: err.message || fallbackMessage,
+    stack: err.stack || (new Error()).stack,
   };
 }
 

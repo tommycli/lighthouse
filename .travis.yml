@@ -12,6 +12,8 @@ cache:
      - node_modules
      - chrome-linux
      - lighthouse-extension/node_modules
+install:
+  - npm install
 before_script:
   - npm i -g typescript@2.0
   - npm --prefix ./lighthouse-extension install ./lighthouse-extension
@@ -24,11 +26,10 @@ script:
   - if [[ $(node -v) =~ ^v4.* ]]; then export __node_harmony=--harmony; fi
   - npm run lint
   - npm run unit
-  - npm run closure
   - npm run smoke
   - npm run smokehouse
   - cd lighthouse-extension
-  - gulp build
+  - gulp build -- $__node_harmony
   - cd ..
 after_success:
   - npm run coveralls

@@ -35,7 +35,7 @@ class NoDocWriteAudit extends Audit {
       name: 'no-document-write',
       description: 'Site does not use document.write()',
       helpText: 'Consider using <code>&lt;script async></code> to load scripts. <code>document.write()</code> is considered <a href="https://developers.google.com/web/updates/2016/08/removing-document-write" target="_blank">harmful for performance</a>.',
-      requiredArtifacts: ['URL', 'DocWriteUse']
+      requiredArtifacts: ['DocWriteUse']
     };
   }
 
@@ -44,11 +44,15 @@ class NoDocWriteAudit extends Audit {
    * @return {!AuditResult}
    */
   static audit(artifacts) {
-    if (typeof artifacts.DocWriteUse === 'undefined' ||
-        artifacts.DocWriteUse === -1) {
+    if (artifacts.DocWriteUse.value === -1) {
+      let debugString = 'Unknown error with the DocWriteUse gatherer';
+      if (artifacts.DocWriteUse.debugString) {
+        debugString = artifacts.DocWriteUse.debugString;
+      }
+
       return NoDocWriteAudit.generateAuditResult({
         rawValue: -1,
-        debugString: 'DocWriteUse gatherer did not run'
+        debugString
       });
     }
 

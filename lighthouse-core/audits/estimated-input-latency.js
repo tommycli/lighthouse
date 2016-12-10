@@ -35,7 +35,8 @@ class EstimatedInputLatency extends Audit {
       name: 'estimated-input-latency',
       description: 'Estimated Input Latency',
       optimalValue: SCORING_POINT_OF_DIMINISHING_RETURNS.toLocaleString() + 'ms',
-      requiredArtifacts: ['traceContents']
+      helpText: 'The score above is an estimate of how long your app takes to respond to user input, in milliseconds. There is a 90% probability that a user encounters this amount of latency, or less. 10% of the time a user can expect additional latency. If your score is higher than Lighthouse\'s target score, users may perceive your app as laggy. <a href="https://developers.google.com/web/tools/lighthouse/audits/estimated-input-latency" rel="noopener noreferrer" target="_blank">Learn more</a>.',
+      requiredArtifacts: ['traces']
     };
   }
 
@@ -67,7 +68,7 @@ class EstimatedInputLatency extends Audit {
       displayValue: `${rawValue}ms`,
       extendedInfo: {
         value: latencyPercentiles,
-        formatter: Formatter.SUPPORTED_FORMATS.ESTIMATED_INPUT_LATENCY
+        formatter: Formatter.SUPPORTED_FORMATS.NULL
       }
     });
   }

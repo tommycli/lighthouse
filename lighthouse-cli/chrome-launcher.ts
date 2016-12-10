@@ -39,20 +39,33 @@ class ChromeLauncher {
   outFile: number
   errFile: number
   pidFile: string
+  startingUrl: string
+  additionalFlags: Array<string>
   chrome: childProcess.ChildProcess
+  port: number
 
   // We can not use default args here due to support node pre 6.
-  constructor(opts?: {autoSelectChrome?: Boolean}) {
-    opts = opts || {};
+  constructor(opts?: {
+      startingUrl?: string,
+      additionalFlags?: Array<string>,
+      autoSelectChrome?: Boolean,
+      port?: number}) {
 
-    // choose the first one (default)
-    this.autoSelectChrome = defaults(opts.autoSelectChrome, true);
+        opts = opts || {};
+
+        // choose the first one (default)
+        this.autoSelectChrome = defaults(opts.autoSelectChrome, true);
+        this.startingUrl = defaults(opts.startingUrl, 'about:blank');
+        this.additionalFlags = defaults(opts.additionalFlags, []);
+        this.port = defaults(opts.port, 9222);
   }
 
   flags() {
     const flags = [
-      '--remote-debugging-port=9222',
+      `--remote-debugging-port=${this.port}`,
       '--disable-extensions',
+      '--disable-translate',
+      '--disable-default-apps',
       '--no-first-run',
       `--user-data-dir=${this.TMP_PROFILE_DIR}`
     ];
@@ -60,8 +73,10 @@ class ChromeLauncher {
     if (process.platform === 'linux') {
       flags.push('--disable-setuid-sandbox');
     }
-    // open about:blank as starting page rather than NTP
-    flags.push('about:blank');
+
+    flags.push(...this.additionalFlags);
+    flags.push(this.startingUrl);
+
     return flags;
   }
 
@@ -126,7 +141,7 @@ class ChromeLauncher {
 
       fs.writeFileSync(this.pidFile, chrome.pid.toString());
 
-      log.verbose('ChromeLauncher', 'Chrome running with pid =', chrome.pid);
+      log.verbose('ChromeLauncher', `Chrome running with pid ${chrome.pid} on port ${this.port}.`);
       resolve(chrome.pid);
     })
     .then(pid => Promise.all([pid, this.waitUntilReady()]));
@@ -144,12 +159,12 @@ class ChromeLauncher {
   // resolves if ready, rejects otherwise
   isDebuggerReady(): Promise<undefined> {
     return new Promise((resolve, reject) => {
-      const client = net.createConnection(9222);
+      const client = net.createConnection(this.port);
       client.once('error', err => {
         this.cleanup(client);
         reject(err);
       });
-      client.once('connect', _ => {
+      client.once('connect', () => {
         this.cleanup(client);
         resolve();
       });
@@ -214,6 +229,15 @@ class ChromeLauncher {
   destroyTmp() {
     if (this.TMP_PROFILE_DIR) {
       log.verbose('ChromeLauncher', `Removing ${this.TMP_PROFILE_DIR}`);
+
+      if (this.outFile) {
+        fs.closeSync(this.outFile);
+      }
+
+      if (this.errFile) {
+        fs.closeSync(this.errFile);
+      }
+
       rimraf.sync(this.TMP_PROFILE_DIR);
     }
   }

@@ -9,9 +9,7 @@
       "theme-color",
       "manifest",
       "accessibility",
-      "content-width",
-      "cache-contents",
-      "geolocation-on-start"
+      "content-width"
     ]
   },
   {
@@ -26,6 +24,22 @@
     "gatherers": [
       "http-redirect",
       "html-without-javascript"
+    ]
+  }, {
+    "recordNetwork": true,
+    "passName": "dbw",
+    "gatherers": [
+      "styles",
+      "dobetterweb/all-event-listeners",
+      "dobetterweb/anchors-with-no-rel-noopener",
+      "dobetterweb/appcache",
+      "dobetterweb/console-time-usage",
+      "dobetterweb/datenow",
+      "dobetterweb/document-write",
+      "dobetterweb/geolocation-on-start",
+      "dobetterweb/notification-on-start",
+      "dobetterweb/tags-blocking-first-paint",
+      "dobetterweb/websql"
     ]
   }],
 
@@ -53,7 +67,7 @@
     "manifest-short-name",
     "manifest-short-name-length",
     "manifest-start-url",
-    "meta-theme-color",
+    "theme-color-meta",
     "aria-valid-attr",
     "aria-allowed-attr",
     "color-contrast",
@@ -61,7 +75,20 @@
     "label",
     "tabindex",
     "content-width",
-    "geolocation-on-start"
+    "dobetterweb/external-anchors-use-rel-noopener",
+    "dobetterweb/appcache-manifest",
+    "dobetterweb/geolocation-on-start",
+    "dobetterweb/link-blocking-first-paint",
+    "dobetterweb/no-console-time",
+    "dobetterweb/no-datenow",
+    "dobetterweb/no-document-write",
+    "dobetterweb/no-mutation-events",
+    "dobetterweb/no-old-flexbox",
+    "dobetterweb/no-websql",
+    "dobetterweb/notification-on-start",
+    "dobetterweb/script-blocking-first-paint",
+    "dobetterweb/uses-http2",
+    "dobetterweb/uses-passive-event-listeners"
   ],
 
   "aggregations": [{
@@ -78,10 +105,6 @@
           "weight": 1
         },
         "works-offline": {
-          "expectedValue": true,
-          "weight": 1
-        },
-        "cache-start-url": {
           "expectedValue": true,
           "weight": 1
         }
@@ -233,12 +256,73 @@
         }
       }
     }]
-  },{
+  }, {
     "name": "Best Practices",
-    "description": "These audits do not affect your score but are worth a look.",
+    "description": "We've compiled some recommendations for modernizing your web app and avoiding performance pitfalls. These audits do not affect your score but are worth a look.",
     "scored": false,
-    "categorizable": false,
+    "categorizable": true,
     "items": [{
+      "name": "Using modern offline features",
+      "audits": {
+        "appcache-manifest": {
+          "expectedValue": false
+        },
+        "no-websql": {
+          "expectedValue": false
+        }
+      }
+    }, {
+      "name": "Using modern protocols",
+      "audits": {
+        "is-on-https": {
+          "expectedValue": false
+        },
+        "uses-http2": {
+          "expectedValue": false,
+          "description": "Resources made by this application should be severed over HTTP/2 for improved performance."
+        }
+      }
+    }, {
+      "name": "Using modern CSS features",
+      "audits": {
+        "no-old-flexbox": {
+          "expectedValue": false
+        }
+      }
+    }, {
+      "name": "Using modern JavaScript features",
+      "audits": {
+        "uses-passive-event-listeners": {
+          "expectedValue": true
+        },
+        "no-mutation-events": {
+          "expectedValue": false
+        }
+      }
+    }, {
+      "name": "Avoiding APIs that harm the user experience",
+      "audits": {
+        "no-document-write": {
+          "expectedValue": false
+        },
+        "link-blocking-first-paint": {
+          "expectedValue": false
+        },
+        "script-blocking-first-paint": {
+          "expectedValue": false
+        },
+        "external-anchors-use-rel-noopener": {
+          "expectedValue": true
+        },
+        "geolocation-on-start": {
+          "expectedValue": false
+        },
+        "notification-on-start": {
+          "expectedValue": false
+        }
+      }
+    }, {
+      "name": "Accessibility",
       "audits": {
         "aria-allowed-attr": {
           "expectedValue": true,
@@ -263,16 +347,16 @@
         "tabindex": {
           "expectedValue": true,
           "weight": 1
-        },
+        }
+      }
+    }, {
+      "name": "Other",
+      "audits": {
         "manifest-short-name-length": {
           "expectedValue": true,
           "weight": 1
         },
         "manifest-display": {
-          "expectedValue": true,
-          "weight": 1
-        },
-        "geolocation-on-start": {
           "expectedValue": true,
           "weight": 1
         },
@@ -313,7 +397,7 @@
         }
       }
     }]
-  },{
+  }, {
     "name": "Performance Metrics",
     "description": "These encapsulate your app's performance.",
     "scored": false,
@@ -327,6 +411,22 @@
         "user-timings": {
           "expectedValue": 0,
           "weight": 1
+        }
+      }
+    }]
+  }, {
+    "name": "Fancier stuff",
+    "description": "A list of newer features that you could be using in your app. These audits do not affect your score and are just suggestions.",
+    "scored": false,
+    "categorizable": true,
+    "items": [{
+      "name": "New JavaScript features",
+      "audits": {
+        "no-datenow": {
+          "expectedValue": false
+        },
+        "no-console-time": {
+          "expectedValue": false
         }
       }
     }]

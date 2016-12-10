@@ -16,22 +16,15 @@
  */
 'use strict';
 
-const Audit = require('../../audits/meta-theme-color.js');
+const Audit = require('../../audits/theme-color-meta.js');
 const assert = require('assert');
 
 /* global describe, it*/
 
 describe('HTML: theme-color audit', () => {
-  it('fails and warns when no window or html present', () => {
-    const emptyAudit = Audit.audit({});
-
-    assert.equal(emptyAudit.rawValue, false);
-    assert(emptyAudit.debugString);
-  });
-
   it('fails and warns when no value given', () => {
     const nullColorAudit = Audit.audit({
-      ThemeColor: null
+      ThemeColor: -1
     });
 
     assert.equal(nullColorAudit.rawValue, false);

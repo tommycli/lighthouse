@@ -4,7 +4,7 @@
 
 HTML report:
 
-![image](https://cloud.githubusercontent.com/assets/39191/19172855/ed871100-8bd8-11e6-9ea6-8aeece7760d4.png)
+![image](https://cloud.githubusercontent.com/assets/238208/20411484/851a02ca-acd6-11e6-96f8-f90204801581.png)
 
 Default CLI output:
 
@@ -24,6 +24,8 @@ Requires Node v5+ or Node v4 w/ `--harmony`
 
 ```sh
 npm install -g lighthouse
+# or if you use yarn:
+# yarn global add lighthouse
 ```
 
 ## Run
@@ -40,19 +42,18 @@ lighthouse --help
 #### Setup
 ```sh
 git clone https://github.com/GoogleChrome/lighthouse
+
 cd lighthouse
 npm install
 
-cd lighthouse-cli/
+# The CLI is authored in TypeScript and requires compilation:
+cd lighthouse-cli
 npm install
 npm run build
+
+# To run the TS compiler in watch mode:
+# cd lighthouse-cli && npm run dev
 ```
-
-#### Working on the CLI.
-
-The CLI's implementation is now in TypeScript; and currently being evaluated for improved ergonomics. You must run a filewatcher with compile step during development.
-
-`cd lighthouse-cli && npm run dev`
 
 #### Run
 
@@ -79,15 +80,9 @@ Better docs coming soon, but in the meantime look at [PR #593](https://github.co
 
 **Do Better Web** is an initiative within Lighthouse to help web developers modernize their existing web applications. By running a set of tests, developers can discover new web platform APIs, become aware of performance pitfalls, and learn (newer) best practices. In other words, do better on the web!
 
-DBW is implemented as a set of standalone [gatherers](https://github.com/GoogleChrome/lighthouse/tree/master/lighthouse-core/gather/gatherers/dobetterweb), [audits](https://github.com/GoogleChrome/lighthouse/tree/master/lighthouse-core/audits/dobetterweb), and a [custom run configuration](https://github.com/GoogleChrome/lighthouse/blob/master/lighthouse-core/config/dobetterweb.json) that can be run alongside the core Lighthouse tests.
+DBW is implemented as a set of standalone [gatherers](https://github.com/GoogleChrome/lighthouse/tree/master/lighthouse-core/gather/gatherers/dobetterweb) and [audits](https://github.com/GoogleChrome/lighthouse/tree/master/lighthouse-core/audits/dobetterweb) that are run alongside the core Lighthouse tests.
 
-To run DBW:
-
-    npm run dbw http://example.com
-
-which is a shorthand for:
-
-    npm run start -- --config-path=lighthouse-core/config/dobetterweb.json --disable-device-emulation --disable-cpu-throttling --disable-network-throttling --output=html --output-path=results.html`
+To run DBW, just run `lighthouse` against a URL. The tests show up under "Best Practices" in the report.
 
 If you'd like to contribute, check the [list of issues](https://github.com/GoogleChrome/lighthouse/issues?q=is%3Aissue+is%3Aopen+label%3ADoBetterWeb) or propose a new audit by filing an issue.
 

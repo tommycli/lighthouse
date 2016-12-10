@@ -19,6 +19,27 @@
 const debug = require('debug');
 const EventEmitter = require('events').EventEmitter;
 
+// process.browser is set when browserify'd via the `process` npm module
+const isBrowser = process.browser;
+
+const colors = {
+  red: isBrowser ? 'crimson' : 1,
+  yellow: isBrowser ? 'gold' : 3,
+  cyan: isBrowser ? 'darkturquoise' : 6,
+  green: isBrowser ? 'forestgreen' : 2,
+  blue: isBrowser ? 'steelblue' : 4,
+  magenta: isBrowser ? 'palevioletred' : 5
+};
+
+// whitelist non-red/yellow colors for debug()
+if (isBrowser) {
+  const debugBrowser = require('debug/browser');
+  debugBrowser.colors = [colors.cyan, colors.green, colors.blue, colors.magenta];
+} else {
+  const debugNode = require('debug/node');
+  debugNode.colors = [colors.cyan, colors.green, colors.blue, colors.magenta];
+}
+
 class Emitter extends EventEmitter {
   /**
    * Fires off all status updates. Listen with
@@ -46,14 +67,28 @@ class Log {
 
   static _logToStdErr(title, argsArray) {
     const args = [...argsArray];
-    if (!loggersByTitle[title]) {
-      loggersByTitle[title] = debug(title);
+    const log = Log.loggerfn(title);
+    log(...args);
+  }
+
+  static loggerfn(title) {
+    let log = loggersByTitle[title];
+    if (!log) {
+      log = debug(title);
+      loggersByTitle[title] = log;
+      // errors with red, warnings with yellow.
+      // eslint-disable-next-line no-nested-ternary
+      log.color = title.endsWith('error') ? colors.red :
+          title.endsWith('warn') ? colors.yellow : undefined;
     }
-    return loggersByTitle[title](...args);
+    return log;
   }
 
   static setLevel(level) {
     switch (level) {
+      case 'silent':
+        debug.disable();
+        break;
       case 'verbose':
         debug.enable('*');
         break;
@@ -81,7 +116,7 @@ class Log {
   }
 
   static log(title) {
-    Log.events.issueStatus(title);
+    Log.events.issueStatus(title, arguments);
     return Log._logToStdErr(title, Array.from(arguments).slice(1));
   }
 

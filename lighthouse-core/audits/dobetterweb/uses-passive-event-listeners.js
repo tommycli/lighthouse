@@ -24,6 +24,7 @@
 
 const url = require('url');
 const Audit = require('../audit');
+const EventHelpers = require('../../lib/event-helpers');
 const Formatter = require('../../formatters/formatter');
 
 class PassiveEventsAudit extends Audit {
@@ -40,10 +41,9 @@ class PassiveEventsAudit extends Audit {
     return {
       category: 'JavaScript',
       name: 'uses-passive-event-listeners',
-      description: 'Site is using passive listeners (at the page level) ' +
-                   'to improve scrolling performance',
+      description: 'Site uses passive listeners to improve scrolling performance',
       helpText: `<a href="https://www.chromestatus.com/features/5745543795965952" target="_blank">Passive event listeners</a> enable better scrolling performance. If you don't call <code>preventDefault()</code> in your <code>${this.SCROLL_BLOCKING_EVENTS.toString()}</code> event listeners, make them passive: <code>addEventListener('touchstart', ..., {passive: true})</code>.`,
-      requiredArtifacts: ['URL', 'PageLevelEventListeners']
+      requiredArtifacts: ['URL', 'EventListeners']
     };
   }
 
@@ -52,17 +52,11 @@ class PassiveEventsAudit extends Audit {
    * @return {!AuditResult}
    */
   static audit(artifacts) {
-    if (typeof artifacts.PageLevelEventListeners === 'undefined' ||
-        artifacts.PageLevelEventListeners === -1) {
-      return PassiveEventsAudit.generateAuditResult({
-        rawValue: -1,
-        debugString: 'PageLevelEventListeners gatherer did not run'
-      });
-    } else if (artifacts.PageLevelEventListeners.rawValue === -1) {
-      return PassiveEventsAudit.generateAuditResult(artifacts.PageLevelEventListeners);
+    if (artifacts.EventListeners.rawValue === -1) {
+      return PassiveEventsAudit.generateAuditResult(artifacts.EventListeners);
     }
 
-    const listeners = artifacts.PageLevelEventListeners;
+    const listeners = artifacts.EventListeners;
     const pageHost = url.parse(artifacts.URL.finalUrl).host;
 
     // Filter out non-passive window/document/document.body listeners that do
@@ -71,22 +65,18 @@ class PassiveEventsAudit extends Audit {
       const isScrollBlocking = this.SCROLL_BLOCKING_EVENTS.indexOf(loc.type) !== -1;
       const mentionsPreventDefault = loc.handler.description.match(
             /\.preventDefault\(\s*\)/g);
-      const sameHost = url.parse(loc.url).host === pageHost;
+      const sameHost = loc.url ? url.parse(loc.url).host === pageHost : true;
       return sameHost && isScrollBlocking && !loc.passive &&
              !mentionsPreventDefault;
-    }).map(loc => {
-      const handler = loc.handler ? loc.handler.description : '...';
-      return Object.assign({
-        label: `line: ${loc.line}, col: ${loc.col}`,
-        code: `${loc.objectId}.addEventListener('${loc.type}', ${handler})`
-      }, loc);
-    });
+    }).map(EventHelpers.addFormattedCodeSnippet);
+
+    const groupedResults = EventHelpers.groupCodeSnippetsByLocation(results);
 
     return PassiveEventsAudit.generateAuditResult({
-      rawValue: results.length === 0,
+      rawValue: groupedResults.length === 0,
       extendedInfo: {
         formatter: Formatter.SUPPORTED_FORMATS.URLLIST,
-        value: results
+        value: groupedResults
       }
     });
   }

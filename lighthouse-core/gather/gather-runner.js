@@ -30,8 +30,10 @@ const path = require('path');
  *   C. GatherRunner.setupDriver()
  *     i. assertNoSameOriginServiceWorkerClients
  *     ii. beginEmulation
- *     iii. cleanAndDisableBrowserCaches
- *     iiii. clearDataForOrigin
+ *     iii. enableRuntimeEvents
+ *     iv. evaluateScriptOnLoad rescue native Promise from potential polyfill
+ *     v. cleanAndDisableBrowserCaches
+ *     vi. clearDataForOrigin
  *
  * 2. For each pass in the config:
  *   A. GatherRunner.beforePass()
@@ -90,6 +92,7 @@ class GatherRunner {
     return driver.assertNoSameOriginServiceWorkerClients(options.url)
       .then(_ => driver.beginEmulation(options.flags))
       .then(_ => driver.enableRuntimeEvents())
+      .then(_ => driver.evaluateScriptOnLoad('window.__nativePromise = Promise;'))
       .then(_ => driver.cleanAndDisableBrowserCaches())
       .then(_ => driver.clearDataForOrigin(options.url));
   }
@@ -260,7 +263,7 @@ class GatherRunner {
         passes.forEach(pass => {
           pass.gatherers.forEach(gatherer => {
             if (typeof gatherer.artifact === 'undefined') {
-              throw new Error(`${gatherer.constructor.name} failed to provide an artifact.`);
+              throw new Error(`${gatherer.name} failed to provide an artifact.`);
             }
 
             artifacts[gatherer.name] = gatherer.artifact;
@@ -317,10 +320,6 @@ class GatherRunner {
 
     if (typeof gathererInstance.afterPass !== 'function') {
       throw new Error(`${gathererName} has no afterPass() method.`);
-    }
-
-    if (typeof gathererInstance.artifact !== 'object') {
-      throw new Error(`${gathererName} has no artifact property.`);
     }
   }
 

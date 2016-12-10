@@ -33,8 +33,8 @@ module.exports = [
       'viewport': true,
       'manifest-display': false,
       'without-javascript': true,
-      'user-timings': 0,
-      'critical-request-chains': 1,
+      'user-timings': true,
+      'critical-request-chains': false,
       'manifest-exists': false,
       'manifest-background-color': false,
       'manifest-theme-color': false,
@@ -50,9 +50,8 @@ module.exports = [
       'color-contrast': true,
       'image-alt': true,
       'label': true,
-      'tab-index': true,
-      'content-width': true,
-      'geolocation': true
+      'tabindex': true,
+      'content-width': true
     }
   },
 
@@ -67,8 +66,8 @@ module.exports = [
       'viewport': true,
       'manifest-display': false,
       'without-javascript': true,
-      'user-timings': 0,
-      'critical-request-chains': 1,
+      'user-timings': true,
+      'critical-request-chains': false,
       'manifest-exists': false,
       'manifest-background-color': false,
       'manifest-theme-color': false,
@@ -84,9 +83,8 @@ module.exports = [
       'color-contrast': true,
       'image-alt': false,
       'label': true,
-      'tab-index': true,
-      'content-width': true,
-      'geolocation': true
+      'tabindex': true,
+      'content-width': true
     }
   }
 ];

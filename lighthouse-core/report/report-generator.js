@@ -24,10 +24,20 @@ const fs = require('fs');
 const path = require('path');
 
 const RATINGS = {
-  GOOD: {label: 'good', minValue: 0.66, minScore: 75},
-  AVERAGE: {label: 'average', minValue: 0.33},
-  POOR: {label: 'poor', minScore: 45}
+  GOOD: {label: 'good', minScore: 75},
+  AVERAGE: {label: 'average', minScore: 45},
+  POOR: {label: 'poor'}
 };
+
+function calculateRating(value) {
+  let rating = RATINGS.POOR.label;
+  if (value >= RATINGS.GOOD.minScore) {
+    rating = RATINGS.GOOD.label;
+  } else if (value >= RATINGS.AVERAGE.minScore) {
+    rating = RATINGS.AVERAGE.label;
+  }
+  return rating;
+}
 
 class ReportGenerator {
 
@@ -44,16 +54,7 @@ class ReportGenerator {
       if (typeof value === 'boolean') {
         return value ? RATINGS.GOOD.label : RATINGS.POOR.label;
       }
-
-      // Limit the rating to average if this is a rating for Best Practices.
-      let rating = RATINGS.POOR.label;
-      if (value > RATINGS.GOOD.minValue) {
-        rating = RATINGS.GOOD.label;
-      } else if (value > RATINGS.AVERAGE.minValue) {
-        rating = RATINGS.AVERAGE.label;
-      }
-
-      return rating;
+      return calculateRating(value);
     };
 
     // Converts a name to a link.
@@ -67,7 +68,6 @@ class ReportGenerator {
       if (typeof value === 'boolean') {
         return value ? '&#10004;' : '&#10008;';
       }
-
       return value;
     });
 
@@ -77,25 +77,15 @@ class ReportGenerator {
     // Converts the total score to a rating that can be used for styling.
     Handlebars.registerHelper('getTotalScoreRating', aggregation => {
       const totalScore = getTotalScore(aggregation);
-
-      let rating = RATINGS.POOR.label;
-      if (totalScore > RATINGS.POOR.minScore) {
-        rating = RATINGS.AVERAGE.label;
-      }
-      if (totalScore > RATINGS.GOOD.minScore) {
-        rating = RATINGS.GOOD.label;
-      }
-
-      return rating;
+      return calculateRating(totalScore);
     });
 
     // Converts a value to a rating string, which can be used inside the report
     // for color styling.
     Handlebars.registerHelper('getItemRating', getItemRating);
 
-    Handlebars.registerHelper('showHelpText', value => {
-      return getItemRating(value) === RATINGS.GOOD.label ? 'hidden' : '';
-    });
+    Handlebars.registerHelper('shouldShowHelpText',
+      value => (getItemRating(value) !== RATINGS.GOOD.label));
 
     // Convert numbers to fixed point decimals
     Handlebars.registerHelper('decimal', number => {
@@ -103,6 +93,24 @@ class ReportGenerator {
         return number.toFixed(2);
       }
       return number;
+    });
+
+    // value is boolean?
+    Handlebars.registerHelper('is-bool', value => (typeof value === 'boolean'));
+
+    // !value
+    Handlebars.registerHelper('not', value => !value);
+
+    // arg1 && arg2 && ... && argn
+    Handlebars.registerHelper('and', function() {
+      let arg = false;
+      for (let i = 0, n = arguments.length - 1; i < n; i++) {
+        arg = arguments[i];
+        if (!arg) {
+          break;
+        }
+      }
+      return arg;
     });
   }
 
@@ -116,16 +124,40 @@ class ReportGenerator {
       hour: 'numeric', minute: 'numeric', second: 'numeric',
       timeZoneName: 'short'
     };
-    const formatter = new Intl.DateTimeFormat('en-US', options);
+    let formatter = new Intl.DateTimeFormat('en-US', options);
+
+    // Force UTC if runtime timezone could not be detected.
+    // See https://github.com/GoogleChrome/lighthouse/issues/1056
+    const tz = formatter.resolvedOptions().timeZone;
+    if (!tz || tz.toLowerCase() === 'etc/unknown') {
+      options.timeZone = 'UTC';
+      formatter = new Intl.DateTimeFormat('en-US', options);
+    }
     return formatter.format(new Date(date));
   }
 
   /**
-   * Gets the HTML for the report.
+   * Escape closing script tags.
    * @return {string}
    */
-  getReportHTML() {
-    return fs.readFileSync(path.join(__dirname, './templates/report.html'), 'utf8');
+  _escapeScriptTags(jsonStr) {
+    return jsonStr.replace(/<\/script>/g, '<\\/script>');
+  }
+
+  /**
+   * Gets the template for the report.
+   * @return {string}
+   */
+  getReportTemplate() {
+    return fs.readFileSync(path.join(__dirname, './templates/report-template.html'), 'utf8');
+  }
+
+  /**
+   * Gets the template for any exceptions.
+   * @return {string}
+   */
+  getExceptionTemplate() {
+    return fs.readFileSync(path.join(__dirname, './templates/exception.html'), 'utf8');
   }
 
   /**
@@ -137,19 +169,11 @@ class ReportGenerator {
   }
 
   /**
-   * Gets the JavaScript for the report.
-   * @param  {boolean} inline Whether or not to give the JS back as an inline script vs external.
+   * Gets the script for the report UI
    * @return {string}
    */
-  getReportJS(inline) {
-    // If this is for the extension we won't be able to run JS inline to the page so we will
-    // return a path to a JS file that will be copied in from ./scripts/report.js by gulp.
-    if (inline) {
-      const reportScript =
-          fs.readFileSync(path.join(__dirname, './scripts/lighthouse-report.js'), 'utf8');
-      return `<script>${reportScript}</script>`;
-    }
-    return '<script src="/pages/scripts/lighthouse-report.js"></script>';
+  getReportJS() {
+    return fs.readFileSync(path.join(__dirname, './scripts/lighthouse-report.js'), 'utf8');
   }
 
   /**
@@ -184,9 +208,29 @@ class ReportGenerator {
     return items;
   }
 
-  generateHTML(results, options) {
-    const inline = (options && options.inline) || false;
+  /**
+   * Creates the page describing any error generated while running generateHTML()
+   * @param {!Error} err Exception thrown from generateHTML.
+   * @param {!Object} results Lighthouse results.
+   * @returns {string} HTML of the exception page.
+   */
+  renderException(err, results) {
+    const template = Handlebars.compile(this.getExceptionTemplate());
+    return template({
+      errMessage: err.message,
+      errStack: err.stack,
+      css: this.getReportCSS(),
+      results: JSON.stringify(results, null, 2)
+    });
+  }
 
+  /**
+   * Generates the Lighthouse report HTML.
+   * @param {!Object} results Lighthouse results.
+   * @param {!string} reportContext Where the report is going
+   * @returns {string} HTML of the report page.
+   */
+  generateHTML(results, reportContext) {
     // Ensure the formatter for each extendedInfo is registered.
     Object.keys(results.audits).forEach(audit => {
       // Use value rather than key for audit.
@@ -216,13 +260,15 @@ class ReportGenerator {
       });
     });
 
-    const template = Handlebars.compile(this.getReportHTML());
+    const template = Handlebars.compile(this.getReportTemplate());
     return template({
       url: results.url,
       lighthouseVersion: results.lighthouseVersion,
       generatedTime: this._formatTime(results.generatedTime),
-      css: this.getReportCSS(inline),
-      script: this.getReportJS(inline),
+      lhresults: this._escapeScriptTags(JSON.stringify(results, null, 2)),
+      css: this.getReportCSS(),
+      reportContext: reportContext || 'extension', // devtools, extension, cli
+      script: this.getReportJS(),
       aggregations: results.aggregations,
       auditsByCategory: this._createPWAAuditsByCategory(results.aggregations)
     });

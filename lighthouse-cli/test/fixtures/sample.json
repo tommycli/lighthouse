@@ -66,7 +66,7 @@
       "rawValue": true,
       "name": "appcache-manifest",
       "category": "Offline",
-      "description": "Site is not using Application Cache",
+      "description": "Site does not use Application Cache",
       "helpText": "Application Cache has been <a href=\"https://html.spec.whatwg.org/multipage/browsers.html#offline\" target=\"_blank\">deprecated</a> by <a href=\"https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API/Using_Service_Workers\" target=\"_blank\">Service Workers</a>. Consider implementing an offline solution using the <a href=\"https://developer.mozilla.org/en-US/docs/Web/API/Cache\" target=\"_blank\">Cache Storage API</a>."
     },
     "no-websql": {
@@ -75,7 +75,7 @@
       "rawValue": true,
       "name": "no-websql",
       "category": "Offline",
-      "description": "Site is not using WebSQL DB.",
+      "description": "Site does not use WebSQL DB.",
       "helpText": "Web SQL Database is <a href=\"https://dev.w3.org/html5/webdatabase/\" target=\"_blank\">deprecated</a>. Consider implementing an offline solution using <a href=\"https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API/Using_IndexedDB\" target=\"_blank\">IndexedDB</a>."
     },
     "first-meaningful-paint": {
@@ -86,11 +86,7 @@
       "extendedInfo": {
         "value": {
           "timings": {
-            "fCP": 615.821,
-            "fMPbasic": 615.595,
-            "fMPpageheight": 615.595,
-            "fMPwebfont": 615.595,
-            "fMPfull": 615.595,
+            "fMP": 615.595,
             "navStart": 110574423.567
           }
         },
@@ -163,7 +159,7 @@
             "time": 18.540999999999997
           }
         ],
-        "formatter": "estimatedInputLatency"
+        "formatter": "null"
       },
       "name": "estimated-input-latency",
       "category": "Performance",
@@ -409,7 +405,7 @@
       "category": "Accessibility",
       "description": "Every form element has a label"
     },
-    "tab-index": {
+    "tabindex": {
       "score": true,
       "displayValue": "",
       "rawValue": true,
@@ -417,7 +413,7 @@
       "extendedInfo": {
         "formatter": "accessibility"
       },
-      "name": "tab-index",
+      "name": "tabindex",
       "category": "Accessibility",
       "description": "No element has a tabindex attribute greater than 0"
     },
