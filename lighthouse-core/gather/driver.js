@@ -756,6 +756,7 @@ function captureJSCallUsage(funcRef, set) {
     // our custom one.
     Error.prepareStackTrace = originalPrepareStackTrace;
 
+    // eslint-disable-next-line no-invalid-this
     return originalFunc.apply(this, arguments);
   };
 }

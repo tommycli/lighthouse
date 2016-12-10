@@ -82,7 +82,7 @@ describe('Element', () => {
   });
 
   it('returns property value from getProperty', () => {
-    var element = new Element(this.stubbedElement, this.stubbedDriver);
+    const element = new Element(stubbedElement, stubbedDriver);
     return element.getProperty('test').then(value => {
       assert.equal(value, '123');
     });
