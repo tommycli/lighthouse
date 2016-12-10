@@ -24,11 +24,16 @@
       "argsIgnorePattern": "(^reject$|^_$)",
       "varsIgnorePattern": "(^_$)"
     }],
+    "brace-style": [2, "1tbs", {
+      "allowSingleLine": true
+    }],
     "quotes": [2, "single"],
     "require-jsdoc": 0,
     "valid-jsdoc": 0,
     "comma-dangle": 0,
     "prefer-const": 2,
+    // browser/node support for rest params isn't ready yet
+    "prefer-rest-params": 0,
     "arrow-parens": 0,
     "strict": [2, "global"]
   },
