@@ -20,7 +20,7 @@ limitations under the License.
 <html data-report-context="{{reportContext}}">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
   <title>Lighthouse report: {{ url }}</title>
   <style>{{{ css }}}</style>
   <script>{{{ script }}}</script>
@@ -39,7 +39,11 @@ limitations under the License.
         <div class="report-body__url">Results for: <a href="{{ url }}" target="_blank">{{ url }}</a></div>
         <div class="report-body__url">Generated on: {{generatedTime}}</div>
       </div>
-      <button class="print js-print"></button>
+      <div class="report-body__buttons">
+        <button class="report-body__icon share js-share"></button>
+        <button class="report-body__icon copy js-copy"></button>
+        <button class="report-body__icon print js-print"></button>
+      </div>
     </div>
     <div class="report-body__content">
       <div class="report-body__menu-container">
@@ -60,22 +64,22 @@ limitations under the License.
         </div>
       </div>
 
-      <div>
+      <div class="report-body__aggregations-container">
       {{#each aggregations}}
-      <section class="js-breakdown aggregations">
-        <header class="aggregations__header" id="{{nameToLink this.name}}">
+      <section class="js-breakdown aggregations" id="{{nameToLink this.name}}">
+        <header class="aggregations__header">
           <h1>{{ this.name }}</h1>
+          <p class="aggregations__desc">{{ this.description }}</p>
+          {{#if this.scored}}
+          <div class="section-result">
+            <span class="section-result__score score-{{ getTotalScoreRating this }}-bg">
+              <span class="section-result__points">{{ getTotalScore this }}</span>
+              <span class="section-result__divider">/</span>
+              <span class="section-result__total">100</span>
+            </span>
+          </div>
+          {{/if}}
         </header>
-        <p class="aggregations__desc">{{ this.description }}</p>
-        {{#if this.scored}}
-        <div class="section-result">
-          <span class="section-result__score --{{ getTotalScoreRating this }}">
-            <span class="section-result__points">{{ getTotalScore this }}</span>
-            <span class="section-result__divider">/</span>
-            <span class="section-result__total">100</span>
-          </span>
-        </div>
-        {{/if}}
 
         <div class="js-report-by-user-feature">
           {{#each this.score as |aggregation|}}
@@ -84,11 +88,10 @@ limitations under the License.
             {{#if aggregation.name }}
             <header class="aggregation__header">
               <h2>{{ aggregation.name }}</h2>
+              {{#if aggregation.description }}
+                <p class="aggregation__desc">{{{ aggregation.description }}}</p>
+              {{/if}}
             </header>
-            {{/if}}
-
-            {{#if aggregation.description }}
-            <p class="aggregation__desc">{{{ aggregation.description }}}</p>
             {{/if}}
 
             <ul class="subitems">
@@ -130,16 +133,16 @@ limitations under the License.
 
                   <div class="subitem-result">
                     {{#if subItem.comingSoon}}
-                          <span class="subitem-result__unknown">N/A</span>
+                          <span class="subitem-result__unknown score-unknown-bg">N/A</span>
                     {{else}}
                       {{#if (is-bool subItem.score)}}
                         {{#if subItem.score}}
-                          <span class="subitem-result__good">Pass</span>
+                          <span class="subitem-result__good score-good-bg">Pass</span>
                         {{else}}
-                          <span class="subitem-result__poor">Fail</span>
+                          <span class="subitem-result__poor score-poor-bg">Fail</span>
                         {{/if}}
                       {{else}}
-                        <span class="subitem-result__points --{{ getItemRating subItem.score }}">
+                        <span class="subitem-result__points score-{{ getItemRating subItem.score }}-bg">
                           {{{ getItemValue subItem.score }}}
                         </span>
                       {{/if}}
