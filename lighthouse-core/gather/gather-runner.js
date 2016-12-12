@@ -107,6 +107,20 @@ class GatherRunner {
   }
 
   /**
+   * Catches any `recoverable` errors from the supplied promise, rejecting on
+   * the rest.
+   * @param {!Promise<*>} promise
+   * @return {!Promise<*>}
+   */
+  static recoverOrThrow(promise) {
+    return promise.catch(err => {
+      if (!err.recoverable) {
+        throw err;
+      }
+    });
+  }
+
+  /**
    * Navigates to about:blank and calls beforePass() on gatherers before tracing
    * has started and before navigation to the target page.
    * @param {!Object} options
@@ -120,11 +134,7 @@ class GatherRunner {
       return chain.then(_ => {
         const artifactPromise = Promise.resolve().then(_ => gatherer.beforePass(options));
         gathererResults[gatherer.name] = [artifactPromise];
-        return artifactPromise.catch(err => {
-          if (!err.recoverable) {
-            throw err;
-          }
-        });
+        return GatherRunner.recoverOrThrow(artifactPromise);
       });
     }, pass);
   }
@@ -153,11 +163,7 @@ class GatherRunner {
       return chain.then(_ => {
         const artifactPromise = Promise.resolve().then(_ => gatherer.pass(options));
         gathererResults[gatherer.name].push(artifactPromise);
-        return artifactPromise.catch(err => {
-          if (!err.recoverable) {
-            throw err;
-          }
-        });
+        return GatherRunner.recoverOrThrow(artifactPromise);
       });
     }, pass);
   }
@@ -208,11 +214,7 @@ class GatherRunner {
         log.log('status', status);
         const artifactPromise = Promise.resolve().then(_ => gatherer.afterPass(options, passData));
         gathererResults[gatherer.name].push(artifactPromise);
-        return artifactPromise.catch(err => {
-          if (!err.recoverable) {
-            throw err;
-          }
-        });
+        return GatherRunner.recoverOrThrow(artifactPromise);
       }).then(_ => {
         log.verbose('statusEnd', status);
       });
