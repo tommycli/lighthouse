@@ -264,7 +264,9 @@ function runLighthouse(url: string,
       }
     })
     .then(() => chromeLauncher.kill())
-    .catch(handleError);
+    .catch(err => {
+      return chromeLauncher.kill().then(() => handleError(err), handleError);
+    });
 }
 
 function run() {
