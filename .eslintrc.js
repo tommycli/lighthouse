@@ -32,7 +32,7 @@ module.exports = {
     "valid-jsdoc": 0,
     "comma-dangle": 0,
     "prefer-const": 2,
-    // browser/node support for rest params isn't ready yet
+    // Compat: support for rest params is behind a flag for node v5.x
     "prefer-rest-params": 0,
     "arrow-parens": 0,
     "strict": [2, "global"]
