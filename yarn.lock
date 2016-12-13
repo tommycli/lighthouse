@@ -1180,9 +1180,9 @@ glogg@^1.0.0:
   dependencies:
     sparkles "^1.0.0"
 
-google-closure-compiler@^20160911.0.0:
-  version "20160911.0.0"
-  resolved "https://registry.yarnpkg.com/google-closure-compiler/-/google-closure-compiler-20160911.0.0.tgz#4ddccbdacc2fbbc74455ad790df4c2df53cd5d54"
+google-closure-compiler@^20160517.0.0:
+  version "20160517.1.0"
+  resolved "https://registry.yarnpkg.com/google-closure-compiler/-/google-closure-compiler-20160517.1.0.tgz#546a3cbced623b3d73912daef1f0297c7032424a"
   dependencies:
     chalk "^1.0.0"
     gulp-util "^3.0.7"
