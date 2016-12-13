@@ -133,9 +133,6 @@ class EventListeners extends Gatherer {
         .then(nodes => {
           nodes.push('document', 'window');
           return this.collectListeners(nodes);
-        })
-        .then(listeners => {
-          return listeners;
         }).catch(_ => {
           return {
             rawValue: -1,

@@ -115,9 +115,6 @@ class TagsBlockingFirstPaint extends Gatherer {
   afterPass(options, tracingData) {
     return TagsBlockingFirstPaint
       .findBlockingTags(options.driver, tracingData.networkRecords)
-      .then(artifact => {
-        return artifact;
-      })
       .catch(err => {
         return {
           value: -1,

@@ -26,9 +26,6 @@ class AppCacheManifest extends Gatherer {
 
     return driver.querySelector('html')
       .then(node => node && node.getAttribute('manifest'))
-      .then(manifest => {
-        return manifest;
-      })
       .catch(_ => {
         return -1;
       });

@@ -29,9 +29,6 @@ class Viewport extends Gatherer {
 
     return driver.querySelector('head meta[name="viewport"]')
       .then(node => node && node.getAttribute('content'))
-      .then(viewport => {
-        return viewport;
-      })
       .catch(_ => {
         return -1;
       });
