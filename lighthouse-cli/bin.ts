@@ -35,6 +35,7 @@ import * as Printer from './printer';
 import * as randomPort from './random-port';
 import {Results} from './types/types';
 const yargs = require('yargs');
+const opn = require('opn');
 
 interface LighthouseError extends Error {
   code?: string
@@ -89,12 +90,14 @@ const cliFlags = yargs
 
   .group([
     'output',
-    'output-path'
+    'output-path',
+    'view'
   ], 'Output:')
   .describe({
     'output': 'Reporter for the results',
     'output-path': `The file path to output the results
-Example: --output-path=./lighthouse-results.html`
+Example: --output-path=./lighthouse-results.html`,
+    'view': 'Open HTML report in your browser'
   })
 
   // boolean values
@@ -108,6 +111,7 @@ Example: --output-path=./lighthouse-results.html`
     'list-all-audits',
     'list-trace-categories',
     'perf',
+    'view',
     'skip-autolaunch',
     'select-chrome',
     'verbose',
@@ -120,7 +124,7 @@ Example: --output-path=./lighthouse-results.html`
   // default values
   .default('chrome-flags', '')
   .default('disable-cpu-throttling', true)
-  .default('output', Printer.GetValidOutputOptions()[Printer.OutputMode.pretty])
+  .default('output', Printer.GetValidOutputOptions()[Printer.OutputMode.none])
   .default('output-path', 'stdout')
   .default('port', 9222)
   .default('max-wait-for-load', Driver.MAX_WAIT_FOR_FULLY_LOADED)
@@ -257,7 +261,7 @@ function handleError(err: LighthouseError) {
 
 function saveResults(results: Results,
                      artifacts: Object,
-                     flags: {output: any, outputPath: string, saveArtifacts: boolean, saveAssets: boolean}) {
+                     flags: {output: any, outputPath: string, saveArtifacts: boolean, saveAssets: boolean, view: boolean}) {
     let promise = Promise.resolve(results);
     const cwd = process.cwd();
     // Use the output path as the prefix for all generated files.
@@ -274,47 +278,51 @@ function saveResults(results: Results,
       promise = promise.then(_ => assetSaver.saveAssets(artifacts, results.audits, resolvedPath));
     }
 
-    if (flags.output === Printer.OutputMode[Printer.OutputMode.pretty]) {
-      promise = promise.then(_ => Printer.write(results, 'html', `${resolvedPath}.report.html`));
+    if (flags.output === Printer.OutputMode[Printer.OutputMode.none]) {
+      promise = promise
+          .then(_ => Printer.write(results, 'html', `${resolvedPath}.report.html`))
+          .then(_ => {
+            if (flags.view) return opn(`${resolvedPath}.report.html`, {wait: false});
+
+            log.warn('CLI', 'Report output no longer defaults to stdout. Use `--output=pretty` to re-enable.');
+            log.log('CLI', 'Protip: Run lighthouse with `--view` to immediately open the HTML report in your browser');
+          });
     }
 
     return promise.then(_ => Printer.write(results, flags.output, flags.outputPath));
 }
 
-function runLighthouse(url: string,
+export async function runLighthouse(url: string,
                        flags: {port: number, skipAutolaunch: boolean, selectChrome: boolean, output: any,
                          outputPath: string, interactive: boolean, saveArtifacts: boolean, saveAssets: boolean
-                         chromeFlags: string, maxWaitForLoad: number},
-                       config: Object): Promise<undefined> {
+                         chromeFlags: string, maxWaitForLoad: number, view: boolean},
+                       config: Object | null): Promise<{}|void> {
 
-  let chromeLauncher: ChromeLauncher;
-  return initPort(flags)
-    .then(() => getDebuggableChrome(flags))
-    .then(chrome => chromeLauncher = chrome)
-    .then(() => lighthouse(url, flags, config))
-    .then((results: Results) => {
-      // remove artifacts from result so reports won't include artifacts.
-      const artifacts = results.artifacts;
-      results.artifacts = undefined;
+  let chromeLauncher: ChromeLauncher | undefined = undefined;
 
-      let promise = saveResults(results, artifacts, flags);
-      if (flags.interactive) {
-        promise = promise.then(() => performanceXServer.hostExperiment({url, flags, config}, results));
-      }
+  try {
+    await initPort(flags)
+    const chromeLauncher = await getDebuggableChrome(flags)
+    const results = await lighthouse(url, flags, config);
 
-      return promise;
-    })
-    .then(() => chromeLauncher.kill())
-    .catch(err => {
-      return chromeLauncher.kill().then(() => handleError(err), handleError);
-    });
-}
+    const artifacts = results.artifacts;
+    delete results.artifacts;
 
-function run() {
+    await saveResults(results, artifacts!, flags);
+    if (flags.interactive) {
+      await performanceXServer.hostExperiment({url, flags, config}, results);
+    }
+
+    return await chromeLauncher.kill();
+  } catch (err) {
+    if (typeof chromeLauncher !== 'undefined') {
+      await chromeLauncher!.kill();
+    }
+
+    return handleError(err);
+  }
+ }
+
+export function run() {
   return runLighthouse(url, cliFlags, config);
-}
-
-export {
-  runLighthouse,
-  run
 }
