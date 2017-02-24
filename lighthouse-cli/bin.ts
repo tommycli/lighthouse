@@ -67,7 +67,7 @@ const cliFlags = yargs
     'chrome-flags',
     'perf',
     'port',
-    'max-wait-for-load',
+    'max-wait-for-load'
   ], 'Configuration:')
   .describe({
     'disable-storage-reset': 'Disable clearing the browser cache and other storage APIs before a run',
